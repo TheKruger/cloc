@@ -1,5 +1,6 @@
 import os
 import sys
+import psutil
 from colorama import init as cinit
 
 cinit()
@@ -8,6 +9,7 @@ white = "\033[0m"
 lgreen = "\033[92m"
 lyellow = "\033[93m"
 lblue = "\033[94m"
+lpurple = "\033[95m"
 
 buf_size = 1024*1024
 
@@ -28,6 +30,8 @@ def Help():
     print("usage: {0} <directory or file> <specific file extensions> <options>".format(sys.argv[0]))
 
     print("\nOptions:")
+    print("  -H, --high       Set the process priority to high.")
+    print("  -i, --ignore     Ignore the given file extensions.")
     print("  -v, --verbose    Show the file lines (only for directories).")
     print("  -n, --no-color   Disable the colors.")
 
@@ -51,8 +55,19 @@ if __name__ == "__main__":
     target = sys.argv[1]
     exts = ""
 
+    ignore = True
     nocolor = False
     verbose = False
+
+    if "-H" in sys.argv or "--high" in sys.argv:
+        process = psutil.Process(os.getpid())
+        if os.name == "nt":
+            process.nice(psutil.HIGH_PRIORITY_CLASS)
+        else:
+            process.nice(10)
+
+    if "-i" in sys.argv or "--ignore" in sys.argv:
+        ignore = False
 
     if "-v" in sys.argv or "--verbose" in sys.argv:
         verbose = True 
@@ -88,7 +103,7 @@ if __name__ == "__main__":
 
         Files = []
         r = 0
-        count = 0
+        count = 1
 
         target = os.path.abspath(target)
 
@@ -100,8 +115,10 @@ if __name__ == "__main__":
         else:
             for root, dirs, files in os.walk(target):
                 for file in files:
-                    if file.endswith(exts):
+                    if file.endswith(exts) == ignore:
                         Files.append(os.path.join(root, file))
+
+        AllFile = len(Files)
 
         # Printing / Counting file lines.
         for file in Files:
@@ -110,10 +127,12 @@ if __name__ == "__main__":
             except Exception as e:
                 print("An error occurred in file:\n\t {0}.\nError: {1}".format(file, e))
             if verbose:
+                perc = round((count / AllFile) * 100)
+                spaces = " " * (3 - len(str(perc)))
                 if nocolor:
-                    print("({0}/{1}) File {2} have {3} lines.".format(len(Files), count, file, "{:,}".format(line)))
+                    print(f"[{spaces}{perc}%] ({AllFile}/{count}) {file} File {file} have {'{:,}'.format(line)} lines.")
                 else:
-                    print("({0}/{1}) File {2} have {3} lines.".format(lyellow + str(len(Files)) + white, lyellow + str(count) + white, lblue + file + white, lgreen + "{:,}".format(line) + white))
+                    print(f"[{spaces}{lpurple}{perc}%{white}] ({AllFile}/{lyellow}{count}{white}) File {lblue}{file}{white} have {lgreen}{line}{white} lines.")
             r += line
             count += 1
         if nocolor:
